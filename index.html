@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sol's RNG 아우라 뽑기</title>
+<link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0b0a1a;--panel:#15132b;--line:#2b2750;--tx:#ece9ff;--mut:#8d89b8;--gold:#ffd36a;--c:#9aa;}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{background:radial-gradient(ellipse at 50% -10%,#2a1f5c 0%,var(--bg) 60%) fixed;color:var(--tx);font-family:'Noto Sans KR',sans-serif;padding:16px;max-width:980px;margin:0 auto}
+h1{font-family:'Do Hyeon',sans-serif;font-weight:400;font-size:2rem;letter-spacing:.02em}
+header{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.stats{display:flex;gap:16px;color:var(--mut);font-size:.9rem}
+.stats b{color:var(--tx)}
+.stage{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:28px 16px;text-align:center;position:relative;overflow:hidden}
+.orb{width:170px;height:170px;border-radius:50%;margin:0 auto 18px;background:radial-gradient(circle,var(--c) 0%,transparent 68%);box-shadow:0 0 60px 10px color-mix(in srgb,var(--c) 45%,transparent);transition:background .2s,box-shadow .2s}
+.orb.pop{animation:pop .5s ease-out}
+@keyframes pop{0%{transform:scale(.4);opacity:.3}60%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
+.name{font-family:'Do Hyeon',sans-serif;font-size:2.4rem;min-height:3rem;color:var(--c);text-shadow:0 0 18px var(--c)}
+.odds{color:var(--mut);min-height:1.5rem;margin-bottom:16px}
+.row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+button{font:inherit;font-weight:700;border:1px solid var(--line);background:#211d44;color:var(--tx);padding:12px 22px;border-radius:10px;cursor:pointer}
+button:hover{background:#2c2760}
+button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.roll{background:var(--gold);color:#241a00;border-color:var(--gold);font-size:1.2rem;padding:14px 48px}
+button.roll:hover{background:#ffe08f}
+button.on{border-color:var(--gold);color:var(--gold)}
+.grid-h{display:flex;justify-content:space-between;align-items:baseline;margin:22px 0 10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.cell{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--c);border-radius:8px;padding:8px 10px;font-size:.85rem}
+.cell.lock{opacity:.5;border-left-color:var(--line)}
+.cell .n{font-weight:700;color:var(--c)}
+.cell.lock .n{color:var(--mut)}
+.cell small{color:var(--mut)}
+.log{margin-top:10px;color:var(--mut);font-size:.85rem;min-height:1.3rem}
+.log span{margin-right:12px}
+#cut{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;z-index:9;background:#000;text-align:center}
+#cut.show{display:flex;animation:fl 2.2s ease-out forwards}
+@keyframes fl{0%{background:#fff}12%{background:#000}85%{opacity:1}100%{opacity:0}}
+#cut .cn{font-family:'Do Hyeon',sans-serif;font-size:clamp(2.2rem,9vw,5rem);color:var(--c);text-shadow:0 0 40px var(--c)}
+#cut .co{color:#fff;margin-top:8px;font-size:1.1rem}
+.env{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:.85rem;color:var(--mut);margin:-12px 0 18px;padding-bottom:10px;border-bottom:1px solid var(--bc,var(--line))}
+@media (prefers-reduced-motion:reduce){.orb.pop,#cut.show{animation:none}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Sol's RNG 아우라 뽑기</h1>
+  <div class="stats">
+    <span>롤 <b id="rolls">0</b></span>
+    <span>코인 <b id="coins">0</b></span>
+    <span>행운 <b id="luck">x1.00</b></span>
+  </div>
+</header>
+
+<section class="stage">
+  <div class="env" id="env"></div>
+  <div class="orb" id="orb"></div>
+  <div class="name" id="name">롤을 눌러 시작하세요</div>
+  <div class="odds" id="odds"></div>
+  <div class="row">
+    <button class="roll" id="roll">롤!</button>
+    <button id="auto">자동 롤: 꺼짐</button>
+    <button id="up">행운 강화 (<span id="cost"></span> 코인)</button>
+    <button id="bio">바이옴 소환 (300 코인)</button>
+  </div>
+  <div class="log" id="log"></div>
+</section>
+
+<div class="grid-h">
+  <h2 style="font-family:'Do Hyeon';font-weight:400;font-size:1.3rem">도감 <span id="own" style="color:var(--mut);font-size:1rem"></span></h2>
+  <button id="reset" style="padding:6px 12px;font-size:.8rem">초기화</button>
+</div>
+<div class="grid" id="grid"></div>
+<p style="color:var(--mut);font-size:.75rem;margin-top:16px">확률은 게임 내 수치를 바탕으로 한 근사값이며, 팬이 만든 비공식 시뮬레이터입니다.</p>
+
+<div id="cut"><div class="cn" id="cn"></div><div class="co" id="co"></div></div>
+
+<script>
+// [이름, 1/확률, 색상]
+// 조건(바이옴 또는 낮/밤)이 필요한 기존 아우라
+const COND={Wind:"Windy",Stormal:"Windy",Glacier:"Snowy",Surfer:"Rainy",Nautilus:"Rainy",Diaboli:"Hell",Bleeding:"Hell",Starscourge:"Starfall",Starfall:"Starfall",Oblivion:"Null",Pixelation:"Glitched",Lunar:"밤",Hope:"낮"};
+const AURAS=[
+["Common",2,"#9aa0a6"],["Uncommon",4,"#6fcf6f"],["Good",5,"#4caf50"],["Natural",8,"#8bc34a"],
+["Rare",16,"#4fc3f7"],["Divinus",32,"#fff3b0"],["Crystallized",64,"#b3e5fc"],["Rage",128,"#ff5252"],
+["Topaz",256,"#ffb74d"],["Ash",300,"#b0a79f"],["Aquamarine",350,"#4dd0e1"],["Gilded",512,"#ffd54f"],
+["Wind",900,"#cfe8ff"],["Emerald",1000,"#2ecc71"],["Diaboli",1004,"#c2185b"],["Precious",1024,"#ff80ab"],
+["Glacier",2304,"#a5f3ff"],["Ruby",3000,"#e53935"],["Sapphire",4096,"#3f6bff"],["Lunar",5000,"#d6d9ff"],
+["Jackpot",7777,"#ffe500"],["Quartz",8192,"#f3d9ff"],["Aegis",9250,"#58c4ff"],["Stormal",9000,"#7e8bff"],
+["Sailor",10000,"#4d9cff"],["Starscourge",10000,"#ffa94d"],["Comet",12000,"#ffcf99"],["Sentinel",20000,"#7a8bff"],
+["Celestial",35000,"#e1b3ff"],["Gargantua",143000,"#ff7a18"],["Bounded",200000,"#e8f4ff"],["Archangel",250000,"#fff7c2"],
+["Shiver",640,"#a0d8ff"],["Bleeding",925,"#c0392b"],["Atomic",1100,"#7dff7d"],["Gravitational",2000,"#8e6bff"],
+["Poisoned",1800,"#a3d94f"],["Undead",2000,"#7fbf9f"],["Magnetic",2048,"#d0d4ff"],["Hazard",2500,"#ffd000"],
+["Nautilus",3500,"#3ec9c0"],["Stargazer",3999,"#b9a7ff"],["Virtual",4500,"#39ff9c"],["Surfer",4400,"#5ad1ff"],
+["Starfall",5555,"#ffe6a8"],["Sidereum",6000,"#9fb4ff"],["Overture",6500,"#ff8fd1"],["Pump",7500,"#ff9f43"],
+["Hope",8000,"#fff0b8"],["Lost Soul",9200,"#9ad0c2"],["Abominable",15000,"#e0f4ff"],["Harvester",17000,"#d35400"],
+["Blodhest",20000,"#b71c1c"],["Prism",30000,"#f7a8ff"],["Nebula",50000,"#7b5cff"],["Supernova",75000,"#ffb86b"],
+["Oblivion",100000,"#5b5b7a"],["Singularity",500000,"#b388ff"],["Eclipse",750000,"#ffcf5c"],["Cosmic Reign",5000000,"#6ee7ff"],
+["Luminosity",1200000,"#fffbd0"],["Equinox",2500000,"#ff9ee6"],["Pixelation",1073741824,"#ffffff"]
+,
+["Downpour",4000,"#5f9bff","Rainy"],["Monsoon",30000,"#4a7bd0","Rainy"],
+["Tempest",25000,"#6fd3ff","Windy"],
+["Permafrost",12000,"#d9f2ff","Snowy"],["Blizzard",40000,"#f0fbff","Snowy"],
+["Mirage",9000,"#f0c27b","Sandstorm"],["Pharaoh",35000,"#e6b422","Sandstorm"],
+["Hellfire",25000,"#ff6a00","Hell"],["Infernal",66666,"#ff3d00","Hell"],
+["Meteoric",25000,"#ffd8a8","Starfall"],["Astral",99999,"#c9b6ff","Starfall"],
+["Corrupted",50000,"#b0359a","Corruption"],["Abyss",133333,"#7a2a8f","Corruption"],
+["Nullified",666666,"#b0b0c8","Null"],["Voidwalker",2000000,"#8a8aa8","Null"],
+["Fault",4040404,"#ff00c8","Glitched"],["Glitch",12404000,"#00ffa6","Glitched"],
+["Moonlit",2500,"#cfd8ff","밤"],["Nocturne",15000,"#7f7fff","밤"],
+["Daybreak",3000,"#ffd27a","낮"],["Solar",10000,"#ffb300","낮"]
+].map(([n,o,c,x])=>({n,o,c,x:x||COND[n]||""})).sort((a,b)=>a.o-b.o);
+
+const $=id=>document.getElementById(id);
+const KEY="solrng-aura-v1";
+let S={rolls:0,coins:0,lv:0,owned:{},recent:[]};
+try{const d=JSON.parse(localStorage.getItem(KEY));if(d)S=Object.assign(S,d)}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+const fmt=n=>n.toLocaleString("ko-KR");
+const luck=()=>1+0.25*S.lv;
+const cost=()=>Math.ceil(100*Math.pow(1.7,S.lv));
+
+function pick(){
+  const L=luck();
+  const t=tod();
+  for(let i=AURAS.length-1;i>=0;i--){
+    const a=AURAS[i];
+    if(a.x&&a.x!==env.biome&&a.x!==t)continue;
+    if(Math.random()<L/a.o)return a;
+  }
+  return AURAS[0];
+}
+function show(a,pop){
+  $("orb").style.setProperty("--c",a.c);
+  document.documentElement.style.setProperty("--c",a.c);
+  $("name").textContent=a.n;
+  $("odds").textContent="1 / "+fmt(a.o);
+  if(pop){const o=$("orb");o.classList.remove("pop");void o.offsetWidth;o.classList.add("pop")}
+}
+const BIO={Normal:["일반","#8d89b8"],Windy:["바람","#cfe8ff"],Rainy:["비","#5f9bff"],Snowy:["눈","#d9f2ff"],Sandstorm:["모래폭풍","#f0c27b"],Hell:["지옥","#ff4d1f"],Starfall:["별똥별","#ffd8a8"],Corruption:["타락","#b0359a"],Null:["널","#9a9ab8"],Glitched:["글리치","#00ffa6"]};
+const WT={Windy:30,Rainy:30,Snowy:25,Sandstorm:20,Hell:10,Starfall:8,Corruption:5,Null:2,Glitched:1};
+let env={biome:"Normal",left:0};
+const tod=()=>Math.floor(Date.now()/60000)%2?"밤":"낮";
+function rndBiome(){let t=0;for(const k in WT)t+=WT[k];let r=Math.random()*t;for(const k in WT){r-=WT[k];if(r<0)return k}return"Windy"}
+function setBiome(b){env.biome=b;env.left=b==="Glitched"?30:60;envUI()}
+function condLabel(x){return BIO[x]?BIO[x][0]+" 바이옴":x+" 시간"}
+function envUI(){
+  const b=BIO[env.biome];
+  $("env").innerHTML='<span style="color:'+b[1]+'">● '+b[0]+(env.biome==="Normal"?"":" 바이옴 ("+env.left+"초)")+'</span><span>'+(tod()==="낮"?"☀ 낮":"☾ 밤")+' ('+(60-Math.floor(Date.now()/1000)%60)+'초 남음)</span>';
+  $("env").style.setProperty("--bc",b[1]);
+}
+setInterval(()=>{
+  if(env.biome!=="Normal"){if(--env.left<=0)env.biome="Normal"}
+  else if(Math.random()<0.04)setBiome(rndBiome());
+  envUI();
+},1000);
+let busy=false,autoT=null;
+function roll(){
+  if(busy)return;
+  busy=true;$("roll").disabled=true;
+  const a=pick();
+  const fast=!!autoT;
+  const spin=fast?0:6;
+  let i=0;
+  (function tick(){
+    if(i<spin){
+      const r=AURAS[Math.floor(Math.random()*Math.min(AURAS.length,14))];
+      $("name").textContent=r.n;$("orb").style.setProperty("--c",r.c);
+      i++;setTimeout(tick,90);
+    }else finish(a);
+  })();
+}
+function finish(a){
+  S.rolls++;
+  const isNew=!S.owned[a.n];
+  S.owned[a.n]=(S.owned[a.n]||0)+1;
+  S.coins+=Math.ceil(Math.sqrt(a.o));
+  S.recent.unshift(a.n);S.recent=S.recent.slice(0,6);
+  show(a,true);
+  if(a.o>=10000)cutscene(a);
+  if(isNew)$("odds").textContent+="  ✦ 새로 획득!";
+  save();render();
+  busy=false;$("roll").disabled=false;
+}
+function cutscene(a){
+  const c=$("cut");
+  document.documentElement.style.setProperty("--c",a.c);
+  $("cn").textContent=a.n;$("co").textContent="1 / "+fmt(a.o)+" 확률로 획득!";
+  c.classList.remove("show");void c.offsetWidth;c.classList.add("show");
+  setTimeout(()=>c.classList.remove("show"),2300);
+}
+function render(){
+  $("rolls").textContent=fmt(S.rolls);
+  $("coins").textContent=fmt(S.coins);
+  $("luck").textContent="x"+luck().toFixed(2);
+  $("cost").textContent=fmt(cost());
+  $("up").disabled=S.coins<cost();
+  $("bio").disabled=S.coins<300;
+  const n=Object.keys(S.owned).length;
+  $("own").textContent=n+" / "+AURAS.length;
+  $("log").innerHTML=S.recent.map(x=>"<span>"+x+"</span>").join("");
+  $("grid").innerHTML=AURAS.map(a=>{
+    const k=S.owned[a.n];
+    return '<div class="cell'+(k?'':' lock')+'" style="--c:'+a.c+'"><div class="n">'+(k?a.n:"???")+'</div><small>1 / '+fmt(a.o)+(k?" · x"+fmt(k):"")+'</small>'+(a.x?'<br><small style="color:var(--gold)">'+condLabel(a.x)+' 한정</small>':'')+'</div>';
+  }).join("");
+}
+$("roll").onclick=roll;
+$("auto").onclick=()=>{
+  if(autoT){clearInterval(autoT);autoT=null;$("auto").textContent="자동 롤: 꺼짐";$("auto").classList.remove("on")}
+  else{autoT=setInterval(roll,350);$("auto").textContent="자동 롤: 켜짐";$("auto").classList.add("on")}
+};
+$("bio").onclick=()=>{if(S.coins>=300){S.coins-=300;setBiome(rndBiome());save();render()}};
+envUI();
+$("up").onclick=()=>{if(S.coins>=cost()){S.coins-=cost();S.lv++;save();render()}};
+$("reset").onclick=()=>{
+  if(confirm("모든 기록을 초기화할까요?")){S={rolls:0,coins:0,lv:0,owned:{},recent:[]};save();render();$("name").textContent="롤을 눌러 시작하세요";$("odds").textContent=""}
+};
+document.addEventListener("keydown",e=>{if(e.code==="Space"&&e.target.tagName!=="BUTTON"){e.preventDefault();roll()}});
+render();
+</script>
+</body>
+</html>
